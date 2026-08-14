@@ -1,4 +1,4 @@
-# predict
+# BCR_score
 
 Disease prediction pipeline based on bulk RNA-seq immune repertoires (BCR light chains IGL/IGK).
 Using the CDR3 amino acid sequences in sample clonotypes and a pre-trained Beta-Binomial
