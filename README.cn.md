@@ -1,4 +1,4 @@
-# predict
+# BCR_score
 
 基于 bulk RNA-seq 免疫组库（BCR 轻链 IGL/IGK）的疾病预测流水线。
 根据样本克隆型中的 CDR3 氨基酸序列，利用预训练的 Beta-Binomial 贝叶斯模型，
