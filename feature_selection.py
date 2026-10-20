@@ -3,11 +3,11 @@
 
 For each chain (default IGL/IGK) builds one Fisher exact table over the
 cohort (carrier counts per sample, disease-oriented OR vs HT), writes the
-full table, then thresholds it into the per-chain cover/UC/CD CDR3aa sets
+full table, then thresholds it into the per-chain universe/UC/CD CDR3aa sets
 and writes them as a single JSON in the exact schema consumed by predict.py
 load_fisher_json:
 
-    {"IGL": {"cover": [..], "UC": [..], "CD": [..]}, "IGK": {...}}
+    {"IGL": {"universe": [..], "UC": [..], "CD": [..]}, "IGK": {...}}
 
 Usage:
     python3 feature_selection.py --table COHORT.tsv --out-dir OUT \
@@ -23,7 +23,7 @@ import bcr_core
 def main():
     parser = argparse.ArgumentParser(
         description="Fisher exact test feature selection: per-chain CDR3 "
-                    "carrier tables -> cover/UC/CD sets JSON for predict.py")
+                    "carrier tables -> universe/UC/CD sets JSON for predict.py")
     parser.add_argument("--table", type=str, required=True,
                         help="Cohort TSV (columns: sample, patient, label, clono_path)")
     parser.add_argument("--out-dir", type=str, required=True,
@@ -53,7 +53,7 @@ def main():
                                    min_count=args.min_count)
         payload[chain] = {key: sorted(values) for key, values in sets.items()}
         print("{}: universe={} |UC|={} |CD|={}".format(
-            chain, len(sets["cover"]), len(sets["UC"]), len(sets["CD"])))
+            chain, len(sets["universe"]), len(sets["UC"]), len(sets["CD"])))
 
     json_path = out_dir / "fisher_sets.json"
     with open(json_path, "w") as f:

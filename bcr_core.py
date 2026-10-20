@@ -161,19 +161,15 @@ def fisher_tables(cohort, chains=CHAINS):
 
 
 def build_sets(fisher_df, p_thresh=0.01, or_thresh=1.5, min_count=5):
-    """Threshold a Fisher table into the cover/UC/CD CDR3aa sets.
+    """Threshold a Fisher table into the universe/UC/CD CDR3aa sets.
 
-    cover = set of ALL CDR3aa in the table (the chain universe; matches the
-    fisher_sets.json semantics where cover ~2M rows).
+    universe = set of ALL CDR3aa observed for this chain in the training
+    cohort (the chain universe; matches the fisher_sets.json semantics
+    where universe ~2M rows).
     UC/CD = CDR3aa with (P <= p_thresh) & (disease-oriented OR > or_thresh)
     & (carrier count >= min_count).
-
-    NOTE: the original code used an OR<0.6 filter on a flipped contingency
-    (equivalent to OR>1/0.6~1.67 disease-oriented). The manuscript states
-    OR>1.5; we implement the manuscript definition with disease-oriented OR,
-    so --or-thresh 1.667 reproduces the released sets.
     """
-    sets = {"cover": set(fisher_df["CDR3aa"])}
+    sets = {"universe": set(fisher_df["CDR3aa"])}
     for group in GROUPS:
         mask = ((fisher_df["P_{}".format(group)] <= p_thresh)
                 & (fisher_df["OR_{}".format(group)] > or_thresh)
@@ -185,17 +181,17 @@ def build_sets(fisher_df, p_thresh=0.01, or_thresh=1.5, min_count=5):
 def coverage_table(cohort, sets_by_chain, chains=CHAINS):
     """Per-sample coverage features against the Fisher reference sets.
 
-    For each sample and chain: n = |all_aa_set(sample) ∩ cover|,
+    For each sample and chain: n = |all_aa_set(sample) ∩ universe|,
     k_UC = |all_aa_set ∩ UC-set|, k_CD = |all_aa_set ∩ CD-set|. IMPORTANT:
     the sample side uses ALL CDR3aa (unfiltered by chain), matching
     predict.py sample_features. Read failures and empty files: warn to
     stderr and give the sample NaN coverage (do not crash the run).
 
-    -> DataFrame[sample, patient, label, {chain}_cover, {chain}_UC, {chain}_CD]
+    -> DataFrame[sample, patient, label, {chain}_universe, {chain}_UC, {chain}_CD]
     """
     cols = ["sample", "patient", "label"]
     for chain in chains:
-        cols += ["{}_cover".format(chain), "{}_UC".format(chain),
+        cols += ["{}_universe".format(chain), "{}_UC".format(chain),
                  "{}_CD".format(chain)]
     rows = []
     for _, row in cohort.iterrows():
@@ -213,12 +209,12 @@ def coverage_table(cohort, sets_by_chain, chains=CHAINS):
                 row["sample"], row["clono_path"], exc), file=sys.stderr)
         for chain in chains:
             if aa is None:
-                out["{}_cover".format(chain)] = float("nan")
+                out["{}_universe".format(chain)] = float("nan")
                 out["{}_UC".format(chain)] = float("nan")
                 out["{}_CD".format(chain)] = float("nan")
             else:
                 chain_sets = sets_by_chain[chain]
-                out["{}_cover".format(chain)] = len(aa & chain_sets["cover"])
+                out["{}_universe".format(chain)] = len(aa & chain_sets["universe"])
                 out["{}_UC".format(chain)] = len(aa & chain_sets["UC"])
                 out["{}_CD".format(chain)] = len(aa & chain_sets["CD"])
         rows.append(out)
@@ -275,7 +271,7 @@ def fit_params(cov_df, chains=CHAINS):
 
     For key K: group = samples with label LABEL_OF[K]; k column is
     {chain}_UC for K in {HT_UC, UC} and {chain}_CD for K in {HT_CD, CD};
-    n column is {chain}_cover. Rows with NaN coverage for that chain are
+    n column is {chain}_universe. Rows with NaN coverage for that chain are
     dropped before fitting.
 
     -> params dict EXACTLY the schema of params_full.json:
@@ -286,7 +282,7 @@ def fit_params(cov_df, chains=CHAINS):
         params[chain] = {}
         for key in KEYS:
             grp = cov_df.loc[cov_df["label"] == LABEL_OF[key]]
-            n_col = "{}_cover".format(chain)
+            n_col = "{}_universe".format(chain)
             k_col = "{}_{}".format(chain, COMPARE_OF[key])
             grp = grp.dropna(subset=[n_col, k_col])
             a, b = fit_bb(grp[n_col].to_numpy(), grp[k_col].to_numpy())
@@ -310,7 +306,7 @@ def compute_scales(cov_df, params, chains=CHAINS):
         for chain in chains:
             ht = params[chain]["HT_{}".format(group)]
             dz = params[chain][group]
-            sc = score_F(out["{}_cover".format(chain)],
+            sc = score_F(out["{}_universe".format(chain)],
                          out["{}_{}".format(chain, group)],
                          ht["N"], ht["a"], ht["b"],
                          dz["N"], dz["a"], dz["b"])

@@ -30,7 +30,7 @@ def load_params(path):
 
 
 def load_fisher_json(path):
-    """Load per-chain cover/UC/CD CDR3aa reference sets (sorted lists -> sets)."""
+    """Load per-chain universe/UC/CD CDR3aa reference sets (sorted lists -> sets)."""
     with open(path) as f:
         payload = json.load(f)
     return {chain: {key: set(vals) for key, vals in payload[chain].items()}
@@ -66,7 +66,7 @@ def main():
     cov = bcr_core.coverage_table(cohort, refs)
     scored = bcr_core.compute_scales(cov, params)
 
-    rename = {"{}_cover".format(c): "n_{}".format(c) for c in CHAINS}
+    rename = {"{}_universe".format(c): "n_{}".format(c) for c in CHAINS}
     for c in CHAINS:
         for g in GROUPS:
             rename["{}_{}".format(c, g)] = "k_{}_{}".format(c, g)

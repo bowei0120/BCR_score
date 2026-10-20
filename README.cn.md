@@ -10,7 +10,7 @@
 BCR_score/
 ├── combine_result.py        # 合并 MIXCR 与 TRUST4 的克隆型结果
 ├── predict.py               # 基于克隆型表计算 UC/CD 疾病 F 分数
-├── fisher_sets.json         # 每链 cover/UC/CD 的 CDR3aa 参考集合（预计算）
+├── fisher_sets.json         # 每链 universe/UC/CD 的 CDR3aa 参考集合（预计算）
 ├── params_full.json         # 每链每个模型的 Beta-Binomial 参数 (a, b, N)
 ├── bcr_core.py              # 训练库：队列读入、Fisher 列联表、覆盖度、BB 拟合
 ├── feature_selection.py     # 训练：Fisher 精确检验 CDR3 特征选择 -> fisher_sets.json
@@ -120,14 +120,14 @@ python3 predict.py --table <samples.tsv> --out <result.tsv> \
 |---|---|
 | `scale_UC` / `scale_CD` | UC / CD 总 F 分数（IGL + IGK 之和） |
 | `scale_IGL_UC` / `scale_IGL_CD` / `scale_IGK_UC` / `scale_IGK_CD` | 各链的 F 分数 |
-| `n_IGL` / `n_IGK` | 样本中落入 cover 参考集的 CDR3aa 数量 |
+| `n_IGL` / `n_IGK` | 样本中落入 universe 参考集的 CDR3aa 数量 |
 | `k_IGL_UC` / `k_IGL_CD` / `k_IGK_UC` / `k_IGK_CD` | 落入 UC / CD 参考集的 CDR3aa 数量 |
 
 ## 方法
 
 对每个样本、每条链（IGL / IGK），统计其 CDR3aa 与参考集的命中数：
 
-- `n`：与 cover 集（训练集中健康与疾病样本共有的 CDR3aa）的交集数量
+- `n`：与 universe 集（训练队列中该链观测到的全部 CDR3aa，任一标签的样本携带即计入）的交集数量
 - `k_UC` / `k_CD`：与 UC / CD 关联 CDR3aa 集合的交集数量
 
 每个模型用 Beta-Binomial 分布描述命中概率，`k ~ Beta-Binomial(n, a, b)`，
@@ -168,8 +168,6 @@ CDR3aa 做双侧 Fisher 精确检验，OR 为疾病朝向（OR > 1 = 在疾病�
   全部使用同一套样本级分析流程。
 - 输出 `IGL_fisher.tsv`、`IGK_fisher.tsv`（完整列联表）和 `fisher_sets.json`，
   schema 与发布的参考文件完全一致（可直接传给 `predict.py --fisher-json`）。
-- 已发布的集合使用翻转列联表上的 `OR < 0.6` 过滤，等价于疾病朝向
-  OR > 1/0.6 ≈ 1.67——用 `--or-thresh 1.667` 可精确复现（论文默认值为 1.5）。
 
 ### 2. 参数估计
 
@@ -178,7 +176,7 @@ python3 estimate_params.py --table cohort.tsv \
     --fisher-json train/fisher_sets.json --out-dir train/
 ```
 
-- `coverage.tsv`：每样本每链，`n` = |样本全部 CDR3aa ∩ cover 集|，
+- `coverage.tsv`：每样本每链，`n` = |样本全部 CDR3aa ∩ universe 集|，
   `k_UC` / `k_CD` = |样本全部 CDR3aa ∩ UC/CD 集|（样本侧不按链过滤，
   与 `predict.py` 一致）。
 - `params.json`：每链 × {HT_UC, UC, HT_CD, CD} 的 Beta-Binomial 参数，

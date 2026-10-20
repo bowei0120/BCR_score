@@ -11,7 +11,7 @@ and Crohn's disease (CD).
 BCR_score/
 ├── combine_result.py        # Merge MIXCR and TRUST4 clonotype results
 ├── predict.py               # Compute UC/CD disease F scales from a clonotype table
-├── fisher_sets.json         # Precomputed per-chain cover/UC/CD CDR3aa reference sets
+├── fisher_sets.json         # Precomputed per-chain universe/UC/CD CDR3aa reference sets
 ├── params_full.json         # Pre-trained Beta-Binomial parameters (a, b, N) per model
 ├── bcr_core.py              # Training library: cohort IO, Fisher tables, coverage, BB fitting
 ├── feature_selection.py     # Train: Fisher exact CDR3 selection -> fisher_sets.json
@@ -124,14 +124,14 @@ Output columns:
 |---|---|
 | `scale_UC` / `scale_CD` | Total UC / CD F scales (IGL + IGK) |
 | `scale_IGL_UC` / `scale_IGL_CD` / `scale_IGK_UC` / `scale_IGK_CD` | Per-chain F scales |
-| `n_IGL` / `n_IGK` | Number of sample CDR3aa found in the cover reference set |
+| `n_IGL` / `n_IGK` | Number of sample CDR3aa found in the universe reference set |
 | `k_IGL_UC` / `k_IGL_CD` / `k_IGK_UC` / `k_IGK_CD` | Number of sample CDR3aa found in the UC / CD reference sets |
 
 ## Method
 
 For each sample and each chain (IGL / IGK), count the hits of its CDR3aa against the reference sets:
 
-- `n`: size of the intersection with the cover set (CDR3aa shared by healthy and disease samples in the training cohort)
+- `n`: size of the intersection with the universe set (all CDR3aa observed for that chain in the training cohort, counted when carried by any sample regardless of label)
 - `k_UC` / `k_CD`: size of the intersection with the UC / CD-associated CDR3aa sets
 
 Each model describes the hit probability with a Beta-Binomial distribution,
@@ -177,9 +177,6 @@ disease-oriented odds ratio (OR > 1 = enriched in disease).
 - Outputs `IGL_fisher.tsv`, `IGK_fisher.tsv` (full tables) and `fisher_sets.json`
   in the exact schema of the released reference file (passable to
   `predict.py --fisher-json`).
-- The released sets were built with an `OR < 0.6` filter on a flipped
-  contingency, equivalent to disease-oriented OR > 1/0.6 ≈ 1.67 — use
-  `--or-thresh 1.667` to reproduce them exactly (the manuscript default is 1.5).
 
 ### 2. Parameter estimation
 
@@ -188,7 +185,7 @@ python3 estimate_params.py --table cohort.tsv \
     --fisher-json train/fisher_sets.json --out-dir train/
 ```
 
-- `coverage.tsv`: per sample and chain, `n` = |all sample CDR3aa ∩ cover set|,
+- `coverage.tsv`: per sample and chain, `n` = |all sample CDR3aa ∩ universe set|,
   `k_UC` / `k_CD` = |all sample CDR3aa ∩ UC/CD sets| (sample side is
   chain-unfiltered, matching `predict.py`).
 - `params.json`: Beta-Binomial parameters per chain × key in

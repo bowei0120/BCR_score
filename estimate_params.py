@@ -3,7 +3,7 @@
 
 Pipeline (training side of predict.py):
 
-  1. load the per-chain cover/UC/CD CDR3aa sets (fisher_sets.json, the exact
+  1. load the per-chain universe/UC/CD CDR3aa sets (fisher_sets.json, the exact
      schema written by feature_selection.py / consumed by predict.py),
   2. compute per-sample coverage features (coverage.tsv),
   3. fit the Beta-Binomial disease model per chain x key in
@@ -33,7 +33,7 @@ def main():
                         help="Cohort TSV (columns: sample, patient, label, clono_path)")
     parser.add_argument("--fisher-json", type=str,
                         default=str(BASE / "fisher_sets.json"),
-                        help="Per-chain cover/UC/CD CDR3 reference sets JSON "
+                         help="Per-chain universe/UC/CD CDR3 reference sets JSON "
                              "(default: fisher_sets.json next to this script)")
     parser.add_argument("--out-dir", type=str, required=True,
                         help="Output dir (coverage.tsv, params.json, scales.tsv)")
