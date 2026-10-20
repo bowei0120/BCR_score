@@ -1,4 +1,4 @@
-CDR3nt	CDR3aa	mixcr_V	mixcr_D	mixcr_J	mixcr_count	mixcr_tpye	trust_V	trust_D	trust_J	trust_count	trust_tpye
+CDR3nt	CDR3aa	mixcr_V	mixcr_D	mixcr_J	mixcr_count	mixcr_type	trust_V	trust_D	trust_J	trust_count	trust_type
 AGTCAGGTGTGGGATAAGACTACTAGTCATTATGTCTTC	SQVWDKTTSHYVF						IGLV3-21*02	.	IGLJ1*01	2	IGL
 CGCTGCTCATATACAACCAGTGACACTTATGTCTTT	RCSYTTSDTYVF						IGLV2-14*01	.	IGLJ1*01	1	IGL
 CGTCAGGTGTGGGACGCCAATTTTTGGGGGTTC	RQVWDANFWGF						IGLV3-9*01	.	IGLJ3*02	1	IGL

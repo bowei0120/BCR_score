@@ -8,11 +8,17 @@ and Crohn's disease (CD).
 ## Directory structure
 
 ```
-predict/
+BCR_score/
 ├── combine_result.py        # Merge MIXCR and TRUST4 clonotype results
 ├── predict.py               # Compute UC/CD disease F scales from a clonotype table
 ├── fisher_sets.json         # Precomputed per-chain cover/UC/CD CDR3aa reference sets
 ├── params_full.json         # Pre-trained Beta-Binomial parameters (a, b, N) per model
+├── bcr_core.py              # Training library: cohort IO, Fisher tables, coverage, BB fitting
+├── feature_selection.py     # Train: Fisher exact CDR3 selection -> fisher_sets.json
+├── estimate_params.py       # Train: coverage + Beta-Binomial fit -> params.json / scales.tsv
+├── cross_validate.py        # Train: leakage-free leave-one-patient-out CV -> AUC/ROC
+├── generate_random_labels.py # Train: generate permuted-label cohort tables (step 1 of the permutation test)
+├── resample_patients.py     # Train: one random specimen per patient, N iterations
 └── example/
     ├── mixcr/               # MIXCR output example (SRR18509019)
     ├── trust4/              # TRUST4 output example (SRR18509019)
@@ -23,6 +29,7 @@ predict/
 
 - Python 3
 - pandas
+- numpy
 - scipy
 
 ## Input file generation (MIXCR / TRUST4)
@@ -35,12 +42,9 @@ of threads; written as in a Nextflow pipeline):
 ### MIXCR (clonotype analysis)
 
 ```bash
-mixcr analyze amplicon \
+mixcr analyze shotgun \
     -s hsa \
-    --5-end v-primers \
-    --3-end j-primers \
     --starting-material rna \
-    --adapters no-adapters \
     --align "-OallowPartialAlignments=true" \
     ${reads[0]} \
     ${reads[1]} \
@@ -50,9 +54,7 @@ mixcr analyze amplicon \
 Parameter notes:
 
 - `-s hsa`: species (human)
-- `--5-end v-primers` / `--3-end j-primers`: amplicon mode with 5' V primers and 3' J primers
 - `--starting-material rna`: starting material is RNA
-- `--adapters no-adapters`: no adapter sequences
 - `--align "-OallowPartialAlignments=true"`: allow partial alignments
 
 Output file `mixcr.${prefix}.clonotypes.ALL.txt`, which is the `-m` input of `combine_result.py`.
@@ -95,22 +97,23 @@ python3 combine_result.py \
 
 Outputs:
 
-- `<sample_id>.TCR_clonotypes.txt`: clonotype table merged by CDR3nt + CDR3aa
+- `<sample_id>.BCR_clonotypes.txt`: clonotype table merged by CDR3nt + CDR3aa
 - `<sample_id>_metrics_manifest.yaml`: clonotype counts per gene type (IGH/IGK/IGL/TRA/TRB/TRD/TRG)
 
 ### 2. Compute disease F scales
 
 ```bash
-python3 predict.py --table <samples.tsv> --out <result.tsv>
+python3 predict.py --table <samples.tsv> --out <result.tsv> \
+    --fisher-json fisher_sets.json --params params_full.json
 ```
 
-Optional arguments: `--fisher-json fisher_sets.json`, `--params params_full.json`
-(defaults to the files in this project; usually no need to specify).
+`--fisher-json` and `--params` are REQUIRED, with no built-in defaults; they must
+point to the precomputed `fisher_sets.json` and `params_full.json`.
 
 `--table` is a TSV with two columns:
 
 - `sample`: sample name
-- `clono_path`: path to the sample's clonotype table (i.e. the `<sample_id>.TCR_clonotypes.txt`
+- `clono_path`: path to the sample's clonotype table (i.e. the `<sample_id>.BCR_clonotypes.txt`
   produced by the merge step)
 
 Note: the header line must NOT start with `#` (the script treats it as a comment line and skips it).
@@ -133,11 +136,119 @@ For each sample and each chain (IGL / IGK), count the hits of its CDR3aa against
 
 Each model describes the hit probability with a Beta-Binomial distribution,
 `k ~ Beta-Binomial(n, a, b)`, where `N` is the number of samples used to train the model.
+Note that `n`/`k` are computed from ALL of the sample's CDR3aa (not filtered by chain),
+exactly as in `predict.py`.
 The F scale is the log Bayes factor:
 
 ```
 log P(data | disease model) / P(data | healthy model)
 ```
+
+## Training (reproducing the model)
+
+The scripts below rebuild `fisher_sets.json` and `params_full.json` from a labeled
+cohort. They all take a **cohort TSV** with four columns:
+
+| Column | Meaning |
+|---|---|
+| `sample` | sample id (one clonotype file per row) |
+| `patient` | patient id (a patient may contribute several specimens) |
+| `label` | `HT`, `UC`, or `CD` |
+| `clono_path` | path to the sample's clonotype table (the `<sample_id>.BCR_clonotypes.txt` from the merge step) |
+
+Note: the header line must NOT start with `#` (the scripts skip it as a comment line).
+
+### 1. Fisher feature selection
+
+```bash
+python3 feature_selection.py --table cohort.tsv --out-dir train/ \
+    [--chains IGL IGK] \
+    [--p 0.01] [--or-thresh 1.5] [--min-count 5]
+```
+
+For each chain, counts how many samples carrying each CDR3aa belong
+to each label and runs a two-sided Fisher exact test per CDR3aa, with a
+disease-oriented odds ratio (OR > 1 = enriched in disease).
+
+- Counting unit is the sample: within-patient non-independence is handled
+  upstream by `resample_patients.py`, which downsamples each patient to one
+  specimen, so permutation testing, resampling, and normal analysis all share
+  one sample-level pipeline.
+- Outputs `IGL_fisher.tsv`, `IGK_fisher.tsv` (full tables) and `fisher_sets.json`
+  in the exact schema of the released reference file (passable to
+  `predict.py --fisher-json`).
+- The released sets were built with an `OR < 0.6` filter on a flipped
+  contingency, equivalent to disease-oriented OR > 1/0.6 ≈ 1.67 — use
+  `--or-thresh 1.667` to reproduce them exactly (the manuscript default is 1.5).
+
+### 2. Parameter estimation
+
+```bash
+python3 estimate_params.py --table cohort.tsv \
+    --fisher-json train/fisher_sets.json --out-dir train/
+```
+
+- `coverage.tsv`: per sample and chain, `n` = |all sample CDR3aa ∩ cover set|,
+  `k_UC` / `k_CD` = |all sample CDR3aa ∩ UC/CD sets| (sample side is
+  chain-unfiltered, matching `predict.py`).
+- `params.json`: Beta-Binomial parameters per chain × key in
+  {HT_UC, UC, HT_CD, CD} — same schema as `params_full.json`, so usable via
+  `predict.py --params`.
+- `scales.tsv`: in-sample F scales for the training cohort.
+
+### 3. Cross-validation
+
+```bash
+python3 cross_validate.py --table cohort.tsv --out-dir train/cv/ \
+    [--p 0.01] [--or-thresh 1.5] [--min-count 5]
+```
+
+Leakage-free leave-one-sample-out CV: for every held-out sample, both the Fisher
+feature selection and the Beta-Binomial parameters are refit on the remaining
+samples ONLY, then the held-out sample is scored. One model is trained per
+held-out sample, so on large cohorts this is the slowest step.
+Outputs `loo_scores.tsv` (one out-of-sample score row per sample + `held_out`),
+`auc.tsv` (UC vs HT, CD vs HT), `roc.tsv` (pooled ROC curve points).
+
+### 4. Permutation test (empirical FDR, Supp. Fig. S1)
+
+The permutation test's downstream analysis is identical to the normal analysis; the
+ONLY difference is the initial label randomization. The repo therefore ships only the
+label generator; once permuted tables exist, run the normal pipeline on them.
+
+```bash
+python3 generate_random_labels.py --table cohort.tsv --out-base-dir train/perm/ \
+    [--n-files 200] [--seed 42]
+```
+
+Writes `random_CD/` and `random_UC/` under `--out-base-dir`, each containing
+`--n-files` cohort tables (`CD_001.txt` ... / `UC_001.txt` ...). Labels are shuffled
+only within the domain (rows with non-empty `clono_path` whose file exists on disk),
+so the case:control ratio of domain rows is preserved exactly; non-domain rows keep
+their original labels; the output keeps the same columns/order as the input table.
+A fixed `--seed` makes the run reproducible.
+
+For the null distribution, run the exact same `feature_selection.py` on every
+permuted cohort table (compare significant CDR3 counts per chain / per group ->
+empirical FDR, the analysis of Supp. Fig. S1) or `cross_validate.py` (compare
+out-of-sample AUC).
+
+### 5. Patient resampling
+
+```bash
+python3 resample_patients.py --table cohort.tsv --out-dir train/res/ \
+    [--n-iter 1000] [--seed 0]
+```
+
+Patients with multiple specimens are downsampled to exactly ONE uniformly random
+specimen per patient, `--n-iter` times (iteration i uses seed `--seed`+i, so runs
+are deterministic). Writes `iter_XXX.tsv` files with the same cohort schema,
+reusable as `--table` inputs for the scripts above — addressing the
+within-patient non-independence. Resampling only regenerates the cohort table
+(`iter_XXX.tsv`); the downstream analysis is exactly the normal pipeline: same
+principle as the permutation test, only the input table changes.
+
+Shared logic lives in `bcr_core.py`; all scripts need only pandas / numpy / scipy.
 
 ## Example: SRR18509019
 
@@ -151,6 +262,7 @@ python3 combine_result.py \
 
 # Score
 printf 'sample\tclono_path\nSRR18509019\t%s\n' \
-    "$PWD/example/SRR18509019/SRR18509019.TCR_clonotypes.txt" > samples.tsv
-python3 predict.py --table samples.tsv --out result.tsv
+    "$PWD/example/SRR18509019/SRR18509019.BCR_clonotypes.txt" > samples.tsv
+python3 predict.py --table samples.tsv --out result.tsv \
+    --fisher-json fisher_sets.json --params params_full.json
 ```

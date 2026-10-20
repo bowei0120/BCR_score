@@ -14,7 +14,7 @@ def join_all(series):
 
 def parse_input() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Combine the TCR CDR3 result of mixcr and trust4"
+        description="Combine the BCR CDR3 result of mixcr and trust4"
     )
     parser.add_argument(
         "-m",
@@ -44,7 +44,7 @@ def parse_input() -> argparse.Namespace:
 
 
 def combine_results(mixcr_path, trust4_path):
-    """Merge the TCR CDR3 results of mixcr and trust4.
+    """Merge the BCR CDR3 results of mixcr and trust4.
 
     Returns:
         data: merged clonotype table
@@ -57,7 +57,7 @@ def combine_results(mixcr_path, trust4_path):
         "cloneCount", "allVHitsWithScore", "allDHitsWithScore", "allJHitsWithScore", "nSeqCDR3", "aaSeqCDR3"
     ])
     mixcr.columns = ["mixcr_count", "mixcr_V", "mixcr_D", "mixcr_J", "CDR3nt", "CDR3aa"]
-    mixcr["mixcr_tpye"] = mixcr.apply(lambda x: ";".join(
+    mixcr["mixcr_type"] = mixcr.apply(lambda x: ";".join(
         [gene_type for gene_type in all_gene_type
          if gene_type in x["mixcr_V"] or gene_type in x["mixcr_J"]]), axis=1)
     mixcr["mixcr_count"] = mixcr["mixcr_count"].astype(int).astype(str)
@@ -68,7 +68,7 @@ def combine_results(mixcr_path, trust4_path):
     trust = pd.read_csv(trust4_path, sep="\t", usecols=[
         "#count", "CDR3nt", "CDR3aa", "V", "D", "J"
     ]).rename(columns={"#count": "trust_count", "V": "trust_V", "D": "trust_D", "J": "trust_J"})
-    trust["trust_tpye"] = trust.apply(lambda x: ";".join(
+    trust["trust_type"] = trust.apply(lambda x: ";".join(
         [gene_type for gene_type in all_gene_type
          if gene_type in x["trust_V"] or gene_type in x["trust_J"]]), axis=1)
     trust["trust_count"] = trust["trust_count"].astype(int).astype(str)
@@ -84,14 +84,14 @@ def combine_results(mixcr_path, trust4_path):
     gene_type_dict = {}
     for gene_type in all_gene_type:
         data[gene_type] = data.apply(lambda x: 1 if (
-            gene_type in x["mixcr_tpye"] or gene_type in x["trust_tpye"]) else 0, axis=1)
+            gene_type in x["mixcr_type"] or gene_type in x["trust_type"]) else 0, axis=1)
         gene_type_dict[gene_type] = sum(data[gene_type])
     gene_type_dict["ALLnt"] = len(data.index)
     gene_type_dict["ALLaa"] = data["CDR3aa"].nunique()
 
     data = data[["CDR3nt", "CDR3aa", "mixcr_V", "mixcr_D", "mixcr_J",
-                 "mixcr_count", "mixcr_tpye", "trust_V", "trust_D", "trust_J",
-                 "trust_count", "trust_tpye"]]
+                 "mixcr_count", "mixcr_type", "trust_V", "trust_D", "trust_J",
+                 "trust_count", "trust_type"]]
     return data, gene_type_dict
 
 
@@ -107,7 +107,7 @@ def main():
     args = parse_input()
     data, gene_type_dict = combine_results(args.mixcr_path, args.trust4_path)
     pathlib.Path(args.output_dir).mkdir(exist_ok=True, parents=True)
-    data.to_csv(os.path.join(args.output_dir, f"{args.sample_id}.TCR_clonotypes.txt"), sep="\t", index=None)
+    data.to_csv(os.path.join(args.output_dir, f"{args.sample_id}.BCR_clonotypes.txt"), sep="\t", index=None)
     metrics_manifest(gene_type_dict, os.path.join(args.output_dir, f"{args.sample_id}_metrics_manifest.yaml"))
 
 
