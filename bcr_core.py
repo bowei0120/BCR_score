@@ -291,7 +291,7 @@ def fit_params(cov_df, chains=CHAINS):
 
 
 def compute_scales(cov_df, params, chains=CHAINS):
-    """Per-chain and total F scales for every sample in cov_df.
+    """Per-chain and total BCR scores for every sample in cov_df.
 
     CRITICAL: each chain uses ITS OWN n/k columns with ITS OWN params.
     For group in (UC, CD): scale_{chain}_{group} = score_F(n_{chain},

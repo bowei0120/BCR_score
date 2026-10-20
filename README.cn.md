@@ -2,14 +2,14 @@
 
 基于 bulk RNA-seq 免疫组库（BCR 轻链 IGL/IGK）的疾病预测流水线。
 根据样本克隆型中的 CDR3 氨基酸序列，利用预训练的 Beta-Binomial 贝叶斯模型，
-计算样本对溃疡性结肠炎（UC）和克罗恩病（CD）的倾向分数（F scale）。
+计算样本对溃疡性结肠炎（UC）和克罗恩病（CD）的倾向分数（BCR score）。
 
 ## 目录结构
 
 ```
 BCR_score/
 ├── combine_result.py        # 合并 MIXCR 与 TRUST4 的克隆型结果
-├── predict.py               # 基于克隆型表计算 UC/CD 疾病 F 分数
+├── predict.py               # 基于克隆型表计算 UC/CD 疾病 BCR score
 ├── fisher_sets.json         # 每链 universe/UC/CD 的 CDR3aa 参考集合（预计算）
 ├── params_full.json         # 每链每个模型的 Beta-Binomial 参数 (a, b, N)
 ├── bcr_core.py              # 训练库：队列读入、Fisher 列联表、覆盖度、BB 拟合
@@ -97,7 +97,7 @@ python3 combine_result.py \
 - `<sample_id>.BCR_clonotypes.txt`：以 CDR3nt+CDR3aa 为键合并后的克隆型表
 - `<sample_id>_metrics_manifest.yaml`：各基因类型（IGH/IGK/IGL/TRA/TRB/TRD/TRG）的克隆型计数
 
-### 2. 计算疾病 F 分数
+### 2. 计算疾病 BCR score
 
 ```bash
 python3 predict.py --table <samples.tsv> --out <result.tsv> \
@@ -118,8 +118,8 @@ python3 predict.py --table <samples.tsv> --out <result.tsv> \
 
 | 列 | 含义 |
 |---|---|
-| `scale_UC` / `scale_CD` | UC / CD 总 F 分数（IGL + IGK 之和） |
-| `scale_IGL_UC` / `scale_IGL_CD` / `scale_IGK_UC` / `scale_IGK_CD` | 各链的 F 分数 |
+| `scale_UC` / `scale_CD` | UC / CD 总 BCR score（IGL + IGK 之和） |
+| `scale_IGL_UC` / `scale_IGL_CD` / `scale_IGK_UC` / `scale_IGK_CD` | 各链的 BCR score |
 | `n_IGL` / `n_IGK` | 样本中落入 universe 参考集的 CDR3aa 数量 |
 | `k_IGL_UC` / `k_IGL_CD` / `k_IGK_UC` / `k_IGK_CD` | 落入 UC / CD 参考集的 CDR3aa 数量 |
 
@@ -132,7 +132,7 @@ python3 predict.py --table <samples.tsv> --out <result.tsv> \
 
 每个模型用 Beta-Binomial 分布描述命中概率，`k ~ Beta-Binomial(n, a, b)`，
 `N` 为训练该模型的样本数。注意 `n`/`k` 由样本的全部 CDR3aa 计算（不按链过滤），
-与 `predict.py` 完全一致。F 分数为 log Bayes factor：
+与 `predict.py` 完全一致。BCR score 为 log Bayes factor：
 
 ```
 log P(数据 | 疾病模型) / P(数据 | 健康模型)
@@ -181,7 +181,7 @@ python3 estimate_params.py --table cohort.tsv \
   与 `predict.py` 一致）。
 - `params.json`：每链 × {HT_UC, UC, HT_CD, CD} 的 Beta-Binomial 参数，
   schema 与 `params_full.json` 相同，可通过 `predict.py --params` 使用。
-- `scales.tsv`：训练队列的样本内 F 分数。
+- `scales.tsv`：训练队列的样本内 BCR score。
 
 ### 3. 交叉验证
 

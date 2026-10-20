@@ -39,7 +39,7 @@ def load_fisher_json(path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Compute disease F scales (UC/CD) and covered sequences for "
+        description="Compute disease BCR scores (UC/CD) and covered sequences for "
                     "new samples from a sample table (columns: sample, clono_path)")
     parser.add_argument("--table", type=str, required=True,
                         help="TSV with columns 'sample' and 'clono_path'")

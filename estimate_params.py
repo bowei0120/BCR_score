@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Estimate Beta-Binomial parameters and in-sample F scales for a BCR cohort.
+"""Estimate Beta-Binomial parameters and in-sample BCR scores for a BCR cohort.
 
 Pipeline (training side of predict.py):
 
@@ -28,7 +28,7 @@ BASE = Path(__file__).resolve().parent
 def main():
     parser = argparse.ArgumentParser(
         description="Fit Beta-Binomial params (params_full.json schema) and "
-                    "in-sample F scales from the Fisher coverage features")
+                    "in-sample BCR scores from the Fisher coverage features")
     parser.add_argument("--table", type=str, required=True,
                         help="Cohort TSV (columns: sample, patient, label, clono_path)")
     parser.add_argument("--fisher-json", type=str,

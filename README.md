@@ -2,7 +2,7 @@
 
 Disease prediction pipeline based on bulk RNA-seq immune repertoires (BCR light chains IGL/IGK).
 Using the CDR3 amino acid sequences in sample clonotypes and a pre-trained Beta-Binomial
-Bayesian model, it computes a sample's propensity scores (F scale) for ulcerative colitis (UC)
+Bayesian model, it computes a sample's propensity scores (BCR score) for ulcerative colitis (UC)
 and Crohn's disease (CD).
 
 ## Directory structure
@@ -10,7 +10,7 @@ and Crohn's disease (CD).
 ```
 BCR_score/
 ├── combine_result.py        # Merge MIXCR and TRUST4 clonotype results
-├── predict.py               # Compute UC/CD disease F scales from a clonotype table
+├── predict.py               # Compute UC/CD disease BCR scores from a clonotype table
 ├── fisher_sets.json         # Precomputed per-chain universe/UC/CD CDR3aa reference sets
 ├── params_full.json         # Pre-trained Beta-Binomial parameters (a, b, N) per model
 ├── bcr_core.py              # Training library: cohort IO, Fisher tables, coverage, BB fitting
@@ -100,7 +100,7 @@ Outputs:
 - `<sample_id>.BCR_clonotypes.txt`: clonotype table merged by CDR3nt + CDR3aa
 - `<sample_id>_metrics_manifest.yaml`: clonotype counts per gene type (IGH/IGK/IGL/TRA/TRB/TRD/TRG)
 
-### 2. Compute disease F scales
+### 2. Compute disease BCR scores
 
 ```bash
 python3 predict.py --table <samples.tsv> --out <result.tsv> \
@@ -122,8 +122,8 @@ Output columns:
 
 | Column | Meaning |
 |---|---|
-| `scale_UC` / `scale_CD` | Total UC / CD F scales (IGL + IGK) |
-| `scale_IGL_UC` / `scale_IGL_CD` / `scale_IGK_UC` / `scale_IGK_CD` | Per-chain F scales |
+| `scale_UC` / `scale_CD` | Total UC / CD BCR scores (IGL + IGK) |
+| `scale_IGL_UC` / `scale_IGL_CD` / `scale_IGK_UC` / `scale_IGK_CD` | Per-chain BCR scores |
 | `n_IGL` / `n_IGK` | Number of sample CDR3aa found in the universe reference set |
 | `k_IGL_UC` / `k_IGL_CD` / `k_IGK_UC` / `k_IGK_CD` | Number of sample CDR3aa found in the UC / CD reference sets |
 
@@ -138,7 +138,7 @@ Each model describes the hit probability with a Beta-Binomial distribution,
 `k ~ Beta-Binomial(n, a, b)`, where `N` is the number of samples used to train the model.
 Note that `n`/`k` are computed from ALL of the sample's CDR3aa (not filtered by chain),
 exactly as in `predict.py`.
-The F scale is the log Bayes factor:
+The BCR score is the log Bayes factor:
 
 ```
 log P(data | disease model) / P(data | healthy model)
@@ -191,7 +191,7 @@ python3 estimate_params.py --table cohort.tsv \
 - `params.json`: Beta-Binomial parameters per chain × key in
   {HT_UC, UC, HT_CD, CD} — same schema as `params_full.json`, so usable via
   `predict.py --params`.
-- `scales.tsv`: in-sample F scales for the training cohort.
+- `scales.tsv`: in-sample BCR scores for the training cohort.
 
 ### 3. Cross-validation
 
