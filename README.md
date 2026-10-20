@@ -175,10 +175,11 @@ In practice, the recommended workflow is: first generate one or more resampled c
 Before feature selection, parameter estimation, or cross-validation, it is strongly recommended to downsample to avoid within-patient leakage/duplication:
 
 ```bash
-python3 resample_patients.py   --table cohort.tsv   --out train/resampled/   --seed 12345   --iter 100
+python3 resample_patients.py --table cohort.tsv --out-dir train/resampled/ \
+    [--n-iter 100] [--seed 12345]
 ```
 
-This will generate `iter_001.tsv`, `iter_002.tsv`, ..., `iter_100.tsv` under `train/resampled/`, where each file contains **exactly one randomly selected sample per patient** (same `patient` set, possibly different sample choices across iterations). Use these resampled tables for training, permutation analyses, and LOPOCV.
+This will generate `iter_000.tsv`, `iter_001.tsv`, ..., `iter_099.tsv` under `train/resampled/`, where each file contains **exactly one randomly selected sample per patient** (same `patient` set, possibly different sample choices across iterations). Use these resampled tables for training, permutation analyses, and LOPOCV.
 
 ### 1. Fisher feature selection
 
@@ -234,12 +235,8 @@ Implementation details (matching the manuscript):
 4. **With one-sample-per-patient tables**: If the input is produced by `resample_patients.py` (exactly one sample per patient), LOPOCV reduces to effectively "leave-one-patient = leave-one-sample" out, but the grouping is still enforced by `patient` to be robust to future cases with multiple specimens.
 
 Outputs (per fold/summary) include out-of-sample scores and cross-validated AUCs (consistent with the manuscript's LOPOCV evaluation).
-```
 
-Leakage-free leave-one-sample-out CV: for every held-out sample, both the Fisher
-feature selection and the Beta-Binomial parameters are refit on the remaining
-samples ONLY, then the held-out sample is scored. One model is trained per
-held-out sample, so on large cohorts this is the slowest step.
+On large cohorts this is the slowest step (one model is trained per held-out patient).
 Outputs `loo_scores.tsv` (one out-of-sample score row per sample + `held_out`),
 `auc.tsv` (UC vs HT, CD vs HT), `roc.tsv` (pooled ROC curve points).
 

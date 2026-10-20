@@ -170,10 +170,11 @@ log P(数据 | 疾病模型) / P(数据 | 健康模型)
 在进行特征选择、参数估计或交叉验证前，强烈建议先进行下采样以避免同患者样本造成的泄漏或重复偏倚：
 
 ```bash
-python3 resample_patients.py   --table cohort.tsv   --out train/resampled/   --seed 12345   --iter 100
+python3 resample_patients.py --table cohort.tsv --out-dir train/resampled/ \
+    [--n-iter 100] [--seed 12345]
 ```
 
-该命令会在 `train/resampled/` 下生成 `iter_001.tsv`、`iter_002.tsv`、...、`iter_100.tsv`。每个文件都包含**每个患者恰好一个随机选取的样本**（患者集合相同，不同迭代的样本选择可能不同）。建议使用这些重采样后的表进行训练、置换检验和 LOPOCV。
+该命令会在 `train/resampled/` 下生成 `iter_000.tsv`、`iter_001.tsv`、...、`iter_099.tsv`。每个文件都包含**每个患者恰好一个随机选取的样本**（患者集合相同，不同迭代的样本选择可能不同）。建议使用这些重采样后的表进行训练、置换检验和 LOPOCV。
 
 ### 1. Fisher 特征选择
 
@@ -225,11 +226,8 @@ python3 cross_validate.py \
 4. **与“每患者一个样本”配合**：如果输入已经是 `resample_patients.py` 产生的“每患者一个样本”表，则 LOPOCV 实际上等效于“留一患者=留一样本”，但脚本仍按 `patient` 分组以保持逻辑通用性。
 
 输出包括各折的 out-of-sample 评分结果及交叉验证汇总的 AUC 等指标。
-```
 
-无泄漏的留一样本交叉验证：对每个留出样本，Fisher 特征选择与 Beta-Binomial
-参数都仅在其余样本上重新拟合，再给留出样本打分。每个留出样本训练一个模型
-（完整留一样本），因此在大队列上是最慢的一步。
+在大队列上这是最慢的一步（每个留出患者训练一个模型）。
 输出 `loo_scores.tsv`（每样本一行的 out-of-sample 分数 + `held_out`）、
 `auc.tsv`（UC vs HT、CD vs HT）、`roc.tsv`（合并 ROC 曲线点）。
 
