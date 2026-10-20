@@ -130,13 +130,16 @@ python3 predict.py --table <samples.tsv> --out <result.tsv> \
 - `n`：与 universe 集（训练队列中该链观测到的全部 CDR3aa，任一标签的样本携带即计入）的交集数量
 - `k_UC` / `k_CD`：与 UC / CD 关联 CDR3aa 集合的交集数量
 
+**重要说明：** `n` 和 `k` 是从**样本的全部唯一 CDR3aa**（不按链过滤）计算的，即将样本全部的 CDR3aa 集合分别与各链的参考集（universe/UC/CD）做交集来获得。这一做法与 `predict.py` 以及 `bcr_core.py` 的实现保持一致。
+
 每个模型用 Beta-Binomial 分布描述命中概率，`k ~ Beta-Binomial(n, a, b)`，
-`N` 为训练该模型的样本数。注意 `n`/`k` 由样本的全部 CDR3aa 计算（不按链过滤），
-与 `predict.py` 完全一致。BCR score 为 log Bayes factor：
+`N` 为训练该模型的样本数。BCR score 为 log Bayes factor：
 
 ```
 log P(数据 | 疾病模型) / P(数据 | 健康模型)
 ```
+
+为了解决同一患者可能贡献多个标本（样本间非独立）的问题，本流程在训练时采用**每患者只保留一个样本**（使用 `resample_patients.py`），在评估时采用**按患者分组的留一患者交叉验证（Leave-One-Patient-Out CV，LOPOCV）**（使用 `cross_validate.py`）。
 
 ## 训练（模型复现）
 
@@ -151,6 +154,26 @@ log P(数据 | 疾病模型) / P(数据 | 健康模型)
 | `clono_path` | 该样本克隆型表路径（合并步骤产出的 `<sample_id>.BCR_clonotypes.txt`） |
 
 注意：表头行不能以 `#` 开头（脚本会按注释行跳过）。
+
+### 同一患者多个样本的处理方式
+
+由于同一患者可能贡献多个活检标本/样本，这些样本之间并非独立。为此，训练流程在不同阶段做了相应处理：
+
+- **每患者只保留一个样本（下采样）**：`resample_patients.py` 会为每个 `patient` 随机选取**恰好 1 个**样本，构建“每患者一个样本”（one-sample-per-patient）的数据集，用于降低同一患者样本之间的相关性，避免在特征选择、置换检验和重采样分析中出现患者过度代表的问题。
+- **按患者分组的留一患者交叉验证（LOPOCV）**：`cross_validate.py` 执行**留一患者交叉验证（Leave-One-Patient-Out Cross-Validation, LOPOCV）**。在每一折中，**被留出的整个患者的所有样本一起从训练集中剔除**，仅用于评分，特征选择和 Beta-Binomial 参数拟合均仅基于其余患者的样本，不使用留出患者的任何信息。
+- **Fisher 计数**：`bcr_core.fisher_tables` 在样本层面（sample-level）统计携带者数量，但推荐在**每患者一个样本**的数据集上运行，以更好地控制患者内相关性。
+
+推荐的训练流程：先用 `resample_patients.py` 生成若干组“每患者一个样本”的队列表，再在这些重采样后的表上运行 `feature_selection.py`、`estimate_params.py` 或 `cross_validate.py`。
+
+### 0. （推荐）每患者随机抽取一个样本
+
+在进行特征选择、参数估计或交叉验证前，强烈建议先进行下采样以避免同患者样本造成的泄漏或重复偏倚：
+
+```bash
+python3 resample_patients.py   --table cohort.tsv   --out train/resampled/   --seed 12345   --iter 100
+```
+
+该命令会在 `train/resampled/` 下生成 `iter_001.tsv`、`iter_002.tsv`、...、`iter_100.tsv`。每个文件都包含**每个患者恰好一个随机选取的样本**（患者集合相同，不同迭代的样本选择可能不同）。建议使用这些重采样后的表进行训练、置换检验和 LOPOCV。
 
 ### 1. Fisher 特征选择
 
@@ -183,11 +206,25 @@ python3 estimate_params.py --table cohort.tsv \
   schema 与 `params_full.json` 相同，可通过 `predict.py --params` 使用。
 - `scales.tsv`：训练队列的样本内 BCR score。
 
-### 3. 交叉验证
+### 3. 交叉验证（留一患者交叉验证，LOPOCV）
 
 ```bash
-python3 cross_validate.py --table cohort.tsv --out-dir train/cv/ \
-    [--p 0.01] [--or-thresh 1.5] [--min-count 5]
+# 基于“每患者一个样本”的重采样队列表进行交叉验证
+python3 cross_validate.py \
+  --table train/resampled/iter_001.tsv \
+  --out-dir train/cv/iter_001/ \
+  [--chains IGL IGK] \
+  [--p 0.01] [--or-thresh 1.5] [--min-count 5]
+```
+
+实现要点（与论文方法一致）：
+
+1. **按患者分组**：`cross_validate.py` 按 `patient` 字段分组。对每个患者执行一折，**将该患者的全部样本一起作为测试集**（留一患者）。
+2. **各折严格无泄漏**：每一折内的 Fisher 特征选择、参考集构建（等价于 `fisher_sets.json`）以及 Beta-Binomial 参数拟合均**仅使用训练集患者**的数据完成，完全不使用留出患者的信息。
+3. **独立评分**：用该折训练得到的模型对留出患者的样本进行评分，最后将所有折的结果汇总，计算交叉验证 AUC。
+4. **与“每患者一个样本”配合**：如果输入已经是 `resample_patients.py` 产生的“每患者一个样本”表，则 LOPOCV 实际上等效于“留一患者=留一样本”，但脚本仍按 `patient` 分组以保持逻辑通用性。
+
+输出包括各折的 out-of-sample 评分结果及交叉验证汇总的 AUC 等指标。
 ```
 
 无泄漏的留一样本交叉验证：对每个留出样本，Fisher 特征选择与 Beta-Binomial

@@ -134,15 +134,17 @@ For each sample and each chain (IGL / IGK), count the hits of its CDR3aa against
 - `n`: size of the intersection with the universe set (all CDR3aa observed for that chain in the training cohort, counted when carried by any sample regardless of label)
 - `k_UC` / `k_CD`: size of the intersection with the UC / CD-associated CDR3aa sets
 
+**Important:** `n` and `k` are computed from **ALL unique CDR3aa of the sample** (chain-unfiltered), by intersecting that full sample CDR3aa set with each chain's reference sets (universe/UC/CD). This matches `predict.py` and the shared path in `bcr_core.py`.
+
 Each model describes the hit probability with a Beta-Binomial distribution,
 `k ~ Beta-Binomial(n, a, b)`, where `N` is the number of samples used to train the model.
-Note that `n`/`k` are computed from ALL of the sample's CDR3aa (not filtered by chain),
-exactly as in `predict.py`.
 The BCR score is the log Bayes factor:
 
 ```
 log P(data | disease model) / P(data | healthy model)
 ```
+
+To account for within-patient dependence (patients may contribute multiple specimens), training uses **one sample per patient** (via `resample_patients.py`) and evaluation uses **leave-one-patient-out cross-validation (LOPOCV)** with patient-wise grouping (via `cross_validate.py`).
 
 ## Training (reproducing the model)
 
@@ -157,6 +159,26 @@ cohort. They all take a **cohort TSV** with four columns:
 | `clono_path` | path to the sample's clonotype table (the `<sample_id>.BCR_clonotypes.txt` from the merge step) |
 
 Note: the header line must NOT start with `#` (the scripts skip it as a comment line).
+
+### Handling within-patient non-independence
+
+Since a single patient may contribute multiple biopsy specimens/samples, samples from the same patient are not independent. The pipeline explicitly accounts for this at different stages:
+
+- **Downsampling to one sample per patient**: `resample_patients.py` randomly selects **exactly one** specimen per `patient` to form a "one-sample-per-patient" dataset. This is used to avoid over-representation of patients and to reduce within-patient correlation in feature selection and permutation/resampling analyses.
+- **Patient-wise cross-validation**: `cross_validate.py` performs **Leave-One-Patient-Out Cross-Validation (LOPOCV)**. In each fold, **all samples belonging to the held-out patient are removed together** from feature selection and model fitting, and only the held-out patient's samples are scored with that fold's model.
+- **Fisher counting**: `bcr_core.fisher_tables` counts carriers at the **sample level**, but is designed to be run on tables where patient-level dependence has already been addressed (e.g. the one-sample-per-patient tables produced by `resample_patients.py`).
+
+In practice, the recommended workflow is: first generate one or more resampled cohorts with `resample_patients.py` (each with 1 sample/patient), then run `feature_selection.py`, `estimate_params.py`, or `cross_validate.py` on those resampled cohorts.
+
+### 0. (Recommended) Resample to one specimen per patient
+
+Before feature selection, parameter estimation, or cross-validation, it is strongly recommended to downsample to avoid within-patient leakage/duplication:
+
+```bash
+python3 resample_patients.py   --table cohort.tsv   --out train/resampled/   --seed 12345   --iter 100
+```
+
+This will generate `iter_001.tsv`, `iter_002.tsv`, ..., `iter_100.tsv` under `train/resampled/`, where each file contains **exactly one randomly selected sample per patient** (same `patient` set, possibly different sample choices across iterations). Use these resampled tables for training, permutation analyses, and LOPOCV.
 
 ### 1. Fisher feature selection
 
@@ -193,11 +215,25 @@ python3 estimate_params.py --table cohort.tsv \
   `predict.py --params`.
 - `scales.tsv`: in-sample BCR scores for the training cohort.
 
-### 3. Cross-validation
+### 3. Cross-validation (Leave-One-Patient-Out)
 
 ```bash
-python3 cross_validate.py --table cohort.tsv --out-dir train/cv/ \
-    [--p 0.01] [--or-thresh 1.5] [--min-count 5]
+# After creating one-sample-per-patient cohorts
+python3 cross_validate.py \
+  --table train/resampled/iter_001.tsv \
+  --out-dir train/cv/iter_001/ \
+  [--chains IGL IGK] \
+  [--p 0.01] [--or-thresh 1.5] [--min-count 5]
+```
+
+Implementation details (matching the manuscript):
+
+1. **Patient grouping**: `cross_validate.py` groups samples by `patient`. For each distinct patient, it performs a fold in which **all samples of that patient are held out as the test set** (leave-one-patient-out).
+2. **Leakage-free training per fold**: Within each fold, Fisher feature selection, reference set construction (`fisher_sets.json` equivalent), and Beta-Binomial parameter fitting are recomputed using **only the training patients**. No information from the held-out patient is used for feature selection or parameter estimation.
+3. **Scoring**: The fold-specific model is applied to the held-out patient's samples to obtain out-of-sample BCR scores, which are then aggregated across all folds.
+4. **With one-sample-per-patient tables**: If the input is produced by `resample_patients.py` (exactly one sample per patient), LOPOCV reduces to effectively "leave-one-patient = leave-one-sample" out, but the grouping is still enforced by `patient` to be robust to future cases with multiple specimens.
+
+Outputs (per fold/summary) include out-of-sample scores and cross-validated AUCs (consistent with the manuscript's LOPOCV evaluation).
 ```
 
 Leakage-free leave-one-sample-out CV: for every held-out sample, both the Fisher
