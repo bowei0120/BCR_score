@@ -318,7 +318,7 @@ within-patient non-independence. Resampling only regenerates the cohort table
 (`iter_XXX.tsv`); the downstream analysis is exactly the normal pipeline: same
 principle as the permutation test, only the input table changes.
 
-In addition, when the prediction results contain patients with multiple specimens,
+When the prediction results contain patients with multiple specimens,
 a sample-level ROC is optimistic because the same patient is counted more than
 once. Patient resampling provides a way to further evaluate the **patient-level
 ROC**: compute the ROC/AUC independently for each iteration (exactly one specimen
