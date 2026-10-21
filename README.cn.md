@@ -302,6 +302,11 @@ python3 resample_patients.py --table cohort.tsv --out-dir train/res/ \
 解决患者内非独立性问题。重采样只重新生成队列表（`iter_XXX.tsv`），其后的
 分析与正常分析完全一致——与置换检验同理，只有输入表变化。
 
+此外，当预测结果中包含贡献了多个标本的患者时，样本级 ROC 会因同一患者被重复
+计入而偏乐观。此时可通过患者重采样进一步评估 **patient-level 的 ROC**：对每个
+迭代（每位患者恰好一个标本）独立计算 ROC/AUC，再汇总各次迭代的 AUC 分布，
+得到不依赖于具体标本选择的患者级判别性能估计。
+
 公共逻辑位于 `bcr_core.py`；所有脚本仅依赖 pandas / numpy / scipy。
 
 ## 示例：SRR18509019
