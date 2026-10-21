@@ -15,7 +15,7 @@ BCR_score/
 ├── params_full.json         # Pre-trained Beta-Binomial parameters (a, b, N) per model
 ├── bcr_core.py              # Training library: cohort IO, Fisher tables, coverage, BB fitting
 ├── feature_selection.py     # Train: Fisher exact CDR3 selection -> fisher_sets.json
-├── estimate_params.py       # Train: coverage + Beta-Binomial fit -> params.json / scales.tsv
+├── estimate_params.py       # Train: coverage + Beta-Binomial fit -> params.json / scores.tsv
 ├── cross_validate.py        # Train: leakage-free leave-one-patient-out CV -> AUC/ROC
 ├── generate_random_labels.py # Train: generate permuted-label cohort tables (step 1 of the permutation test)
 ├── resample_patients.py     # Train: one random specimen per patient, N iterations
@@ -39,8 +39,7 @@ BCR_score/
 
 The inputs of `combine_result.py` are the outputs of two immune-repertoire analysis tools run
 on a sample's FASTQ reads. Paired-end example below (`${reads[0]}` / `${reads[1]}` are the
-sample's paired-end FASTQ files, `${prefix}` is the sample prefix, `${task.cpus}` is the number
-of threads; written as in a Nextflow pipeline):
+sample's paired-end FASTQ files, `${prefix}` is the sample prefix:
 
 ### MIXCR (clonotype analysis)
 
@@ -125,8 +124,8 @@ Output columns:
 
 | Column | Meaning |
 |---|---|
-| `scale_UC` / `scale_CD` | Total UC / CD BCR scores (IGL + IGK) |
-| `scale_IGL_UC` / `scale_IGL_CD` / `scale_IGK_UC` / `scale_IGK_CD` | Per-chain BCR scores |
+| `score_UC` / `score_CD` | Total UC / CD BCR scores (IGL + IGK) |
+| `score_IGL_UC` / `score_IGL_CD` / `score_IGK_UC` / `score_IGK_CD` | Per-chain BCR scores |
 | `n_IGL` / `n_IGK` | Number of sample CDR3aa found in the universe reference set |
 | `k_IGL_UC` / `k_IGL_CD` / `k_IGK_UC` / `k_IGK_CD` | Number of sample CDR3aa found in the UC / CD reference sets |
 
@@ -255,7 +254,7 @@ python3 estimate_params.py --table cohort.tsv \
 - `params.json`: Beta-Binomial parameters per chain × key in
   {HT_UC, UC, HT_CD, CD} — same schema as `params_full.json`, so usable via
   `predict.py --params`.
-- `scales.tsv`: in-sample BCR scores for the training cohort.
+- `scores.tsv`: in-sample BCR scores for the training cohort.
 
 ### 3. Cross-validation (Leave-One-Patient-Out)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Inference side of the BCR score: predict.py is a thin wrapper that reuses
-bcr_core.coverage_table + bcr_core.compute_scales so training (estimate_params.py)
+bcr_core.coverage_table + bcr_core.compute_scores so training (estimate_params.py)
 and inference share one code path; required inputs are the precomputed
 fisher_sets.json / params_full.json."""
 import argparse
@@ -15,9 +15,9 @@ import bcr_core
 CHAINS = list(bcr_core.CHAINS)
 GROUPS = list(bcr_core.GROUPS)
 OUT_COLS = [
-    "sample", "scale_UC", "scale_CD",
-    "scale_IGL_UC", "scale_IGL_CD",
-    "scale_IGK_UC", "scale_IGK_CD",
+    "sample", "score_UC", "score_CD",
+    "score_IGL_UC", "score_IGL_CD",
+    "score_IGK_UC", "score_IGK_CD",
     "n_IGL", "k_IGL_UC", "k_IGL_CD",
     "n_IGK", "k_IGK_UC", "k_IGK_CD",
 ]
@@ -64,7 +64,7 @@ def main():
     refs = load_fisher_json(Path(args.fisher_json))
     params = load_params(args.params)
     cov = bcr_core.coverage_table(cohort, refs)
-    scored = bcr_core.compute_scales(cov, params)
+    scored = bcr_core.compute_scores(cov, params)
 
     rename = {"{}_universe".format(c): "n_{}".format(c) for c in CHAINS}
     for c in CHAINS:

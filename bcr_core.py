@@ -290,15 +290,15 @@ def fit_params(cov_df, chains=CHAINS):
     return params
 
 
-def compute_scales(cov_df, params, chains=CHAINS):
+def compute_scores(cov_df, params, chains=CHAINS):
     """Per-chain and total BCR scores for every sample in cov_df.
 
     CRITICAL: each chain uses ITS OWN n/k columns with ITS OWN params.
-    For group in (UC, CD): scale_{chain}_{group} = score_F(n_{chain},
+    For group in (UC, CD): score_{chain}_{group} = score_F(n_{chain},
     k_{chain}_{group}, HT_<group> params, <group> params);
-    scale_{group} = sum over chains.
+    score_{group} = sum over chains.
 
-    -> copy of cov_df with scale_{chain}_{group} and scale_{group} columns.
+    -> copy of cov_df with score_{chain}_{group} and score_{group} columns.
     """
     out = cov_df.copy()
     for group in GROUPS:
@@ -310,7 +310,7 @@ def compute_scales(cov_df, params, chains=CHAINS):
                          out["{}_{}".format(chain, group)],
                          ht["N"], ht["a"], ht["b"],
                          dz["N"], dz["a"], dz["b"])
-            out["scale_{}_{}".format(chain, group)] = sc
+            out["score_{}_{}".format(chain, group)] = sc
             total = sc if total is None else total + sc
-        out["scale_{}".format(group)] = total
+        out["score_{}".format(group)] = total
     return out

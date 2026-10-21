@@ -8,7 +8,7 @@ Pipeline (training side of predict.py):
   2. compute per-sample coverage features (coverage.tsv),
   3. fit the Beta-Binomial disease model per chain x key in
      {HT_UC, UC, HT_CD, CD} (params.json, same schema as params_full.json),
-  4. score every sample with the log Bayes factor F (scales.tsv).
+  4. score every sample with the log Bayes factor F (scores.tsv).
 
 Usage:
     python3 estimate_params.py --table COHORT.tsv --fisher-json PATH --out-dir OUT
@@ -36,7 +36,7 @@ def main():
                          help="Per-chain universe/UC/CD CDR3 reference sets JSON "
                              "(default: fisher_sets.json next to this script)")
     parser.add_argument("--out-dir", type=str, required=True,
-                        help="Output dir (coverage.tsv, params.json, scales.tsv)")
+                        help="Output dir (coverage.tsv, params.json, scores.tsv)")
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -56,14 +56,14 @@ def main():
             for chain in params for key, p in params[chain].items()]
     print(pd.DataFrame(rows).to_string(index=False))
 
-    scales = bcr_core.compute_scales(cov, params)
-    scale_cols = ["sample", "patient", "label"]
+    scores = bcr_core.compute_scores(cov, params)
+    score_cols = ["sample", "patient", "label"]
     for chain in bcr_core.CHAINS:
         for group in bcr_core.GROUPS:
-            scale_cols.append("scale_{}_{}".format(chain, group))
-    scale_cols += ["scale_UC", "scale_CD"]
-    scales[scale_cols].to_csv(out_dir / "scales.tsv", sep="\t", index=None)
-    print("wrote {} ({} samples)".format(out_dir / "scales.tsv", len(scales)))
+            score_cols.append("score_{}_{}".format(chain, group))
+    score_cols += ["score_UC", "score_CD"]
+    scores[score_cols].to_csv(out_dir / "scores.tsv", sep="\t", index=None)
+    print("wrote {} ({} samples)".format(out_dir / "scores.tsv", len(scores)))
 
 
 if __name__ == "__main__":

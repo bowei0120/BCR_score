@@ -14,7 +14,7 @@ BCR_score/
 ├── params_full.json         # 每链每个模型的 Beta-Binomial 参数 (a, b, N)
 ├── bcr_core.py              # 训练库：队列读入、Fisher 列联表、覆盖度、BB 拟合
 ├── feature_selection.py     # 训练：Fisher 精确检验 CDR3 特征选择 -> fisher_sets.json
-├── estimate_params.py       # 训练：覆盖度 + Beta-Binomial 拟合 -> params.json / scales.tsv
+├── estimate_params.py       # 训练：覆盖度 + Beta-Binomial 拟合 -> params.json / scores.tsv
 ├── cross_validate.py        # 训练：无泄漏留一患者交叉验证 -> AUC/ROC
 ├── generate_random_labels.py # 训练：生成置换标签队列表（置换检验的第一步）
 ├── resample_patients.py     # 训练：每患者随机抽取一个标本，重复 N 次
@@ -37,8 +37,7 @@ BCR_score/
 ## 输入文件生成（MIXCR / TRUST4）
 
 `combine_result.py` 的输入是两个免疫组库分析工具对样本 FASTQ 的输出。
-以双端数据为例（`${reads[0]}` / `${reads[1]}` 为该样本的双端 FASTQ，`${prefix}` 为样本前缀，
-`${task.cpus}` 为线程数，以下为 nextflow 流程中的写法）：
+以双端数据为例（`${reads[0]}` / `${reads[1]}` 为该样本的双端 FASTQ，`${prefix}` 为样本前缀：
 
 ### MIXCR（克隆型分析）
 
@@ -121,8 +120,8 @@ python3 predict.py --table <samples.tsv> --out <result.tsv> \
 
 | 列 | 含义 |
 |---|---|
-| `scale_UC` / `scale_CD` | UC / CD 总 BCR score（IGL + IGK 之和） |
-| `scale_IGL_UC` / `scale_IGL_CD` / `scale_IGK_UC` / `scale_IGK_CD` | 各链的 BCR score |
+| `score_UC` / `score_CD` | UC / CD 总 BCR score（IGL + IGK 之和） |
+| `score_IGL_UC` / `score_IGL_CD` / `score_IGK_UC` / `score_IGK_CD` | 各链的 BCR score |
 | `n_IGL` / `n_IGK` | 样本中落入 universe 参考集的 CDR3aa 数量 |
 | `k_IGL_UC` / `k_IGL_CD` / `k_IGK_UC` / `k_IGK_CD` | 落入 UC / CD 参考集的 CDR3aa 数量 |
 
@@ -245,7 +244,7 @@ python3 estimate_params.py --table cohort.tsv \
   与 `predict.py` 一致）。
 - `params.json`：每链 × {HT_UC, UC, HT_CD, CD} 的 Beta-Binomial 参数，
   schema 与 `params_full.json` 相同，可通过 `predict.py --params` 使用。
-- `scales.tsv`：训练队列的样本内 BCR score。
+- `scores.tsv`：训练队列的样本内 BCR score。
 
 ### 3. 交叉验证（留一患者交叉验证，LOPOCV）
 

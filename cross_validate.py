@@ -12,7 +12,7 @@ Pipeline per held-out sample u:
   4. coverage_table(train)       [train coverage only]
   5. fit_params(train coverage)  [params exclude u]
   6. coverage_table(u rows) against the train sets
-  7. compute_scales(u rows, train params)
+  7. compute_scores(u rows, train params)
   8. collect the scored rows with held_out = u
 
 Usage:
@@ -74,7 +74,7 @@ def fit_and_score(train, test, args):
     Feature selection (fisher_tables/build_sets) and parameter estimation
     (fit_params) both see only `train`, so the returned test rows are
     out-of-sample. Scoring options (chains, thresholds) come from args.
-    Returns the scored test rows (coverage + scale columns).
+    Returns the scored test rows (coverage + score columns).
     """
     tables = bcr_core.fisher_tables(train, chains=args.chains)
     sets_by_chain = {}
@@ -86,7 +86,7 @@ def fit_and_score(train, test, args):
     train_cov = bcr_core.coverage_table(train, sets_by_chain, chains=args.chains)
     params = bcr_core.fit_params(train_cov, chains=args.chains)
     test_cov = bcr_core.coverage_table(test, sets_by_chain, chains=args.chains)
-    return bcr_core.compute_scales(test_cov, params, chains=args.chains)
+    return bcr_core.compute_scores(test_cov, params, chains=args.chains)
 
 
 def build_jobs(cohort):
@@ -102,7 +102,7 @@ def collect_auc(result, groups):
     """One out-of-sample AUC row per group over all held-out samples."""
     auc_rows, roc_rows = [], []
     for group in groups:
-        col = "scale_{}".format(group)
+        col = "score_{}".format(group)
         sub = result[result["label"].isin(["HT", group])].dropna(subset=[col])
         n_pos = int((sub["label"] == group).sum())
         n_neg = int((sub["label"] == "HT").sum())
@@ -161,12 +161,12 @@ def main():
         sys.exit(2)
     result = pd.concat(scored_frames, ignore_index=True)
 
-    scale_cols = []
+    score_cols = []
     for chain in args.chains:
         for group in bcr_core.GROUPS:
-            scale_cols.append("scale_{}_{}".format(chain, group))
-    scale_cols += ["scale_UC", "scale_CD"]
-    out_cols = ["sample", "patient", "label", "held_out"] + scale_cols
+            score_cols.append("score_{}_{}".format(chain, group))
+    score_cols += ["score_UC", "score_CD"]
+    out_cols = ["sample", "patient", "label", "held_out"] + score_cols
     result[out_cols].to_csv(out_dir / "loo_scores.tsv", sep="\t", index=None)
     print("wrote {} ({} samples)".format(out_dir / "loo_scores.tsv", len(result)))
 
