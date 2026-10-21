@@ -19,6 +19,8 @@ BCR_score/
 ├── cross_validate.py        # Train: leakage-free leave-one-patient-out CV -> AUC/ROC
 ├── generate_random_labels.py # Train: generate permuted-label cohort tables (step 1 of the permutation test)
 ├── resample_patients.py     # Train: one random specimen per patient, N iterations
+├── ROC.R                    # Evaluate: ROC analysis (AUC/CI, Youden best cutoff), parameterized script
+├── BCR_score_result/        # Per-cohort BCR score result tables (input of ROC.R)
 └── example/
     ├── mixcr/               # MIXCR output example (SRR18509019)
     ├── trust4/              # TRUST4 output example (SRR18509019)
@@ -31,6 +33,7 @@ BCR_score/
 - pandas
 - numpy
 - scipy
+- R (only for `ROC.R`) + pROC package (`install.packages("pROC")`)
 
 ## Input file generation (MIXCR / TRUST4)
 
@@ -126,6 +129,44 @@ Output columns:
 | `scale_IGL_UC` / `scale_IGL_CD` / `scale_IGK_UC` / `scale_IGK_CD` | Per-chain BCR scores |
 | `n_IGL` / `n_IGK` | Number of sample CDR3aa found in the universe reference set |
 | `k_IGL_UC` / `k_IGL_CD` / `k_IGK_UC` / `k_IGK_CD` | Number of sample CDR3aa found in the UC / CD reference sets |
+
+### 3. ROC analysis
+
+`BCR_score_result/` holds the per-cohort scoring result tables
+(`score_<cohort>.csv` with columns `label`, `score_UC`, `score_CD` and sample ids
+as row names), which are the inputs of `ROC.R`. `ROC.R` is a parameterized
+script — everything is passed on the command line:
+
+```bash
+Rscript ROC.R --table BCR_score_result/score_PRJNA797175.csv \
+    --case UC --control Control --score score_UC \
+    [--label label] [--cutoff 3.258] [--out roc.pdf]
+```
+
+| Argument | Meaning |
+|---|---|
+| `--table` | **Required**: path to the score table (CSV is read with `row.names=1`; TSV needs a header + row-name column) |
+| `--case` | **Required**: case label in the label column (e.g. `UC`, `CD`) |
+| `--control` | **Required**: control label in the label column (e.g. `Control`, `HT`) |
+| `--score` | **Required**: score column to use (e.g. `score_UC`, `score_CD`) |
+| `--label` | Label column name (default: `label`) |
+| `--cutoff` | Optional: fixed threshold; reports sensitivity/specificity at that point |
+| `--out` | Optional: output image path; device chosen by extension (`.pdf`/`.png`/`.jpg`/`.svg`). Omit to plot interactively |
+
+Prints to stdout: AUC (95% CI), the Youden best cutoff with its sens/spec, and —
+if `--cutoff` is given — sens/spec at that threshold.
+
+Examples:
+
+```bash
+# UC vs Control with the fixed threshold 3.258
+Rscript ROC.R --table BCR_score_result/score_PRJNA797175.csv \
+    --case UC --control Control --score score_UC --cutoff 3.258
+
+# CD vs Control, also write a PDF plot
+Rscript ROC.R --table BCR_score_result/score_PRJEB24645.csv \
+    --case CD --control Control --score score_CD --out roc_CD.pdf
+```
 
 ## Method
 

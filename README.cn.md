@@ -18,6 +18,8 @@ BCR_score/
 ├── cross_validate.py        # 训练：无泄漏留一患者交叉验证 -> AUC/ROC
 ├── generate_random_labels.py # 训练：生成置换标签队列表（置换检验的第一步）
 ├── resample_patients.py     # 训练：每患者随机抽取一个标本，重复 N 次
+├── ROC.R                    # 评估：ROC 分析（AUC/CI、Youden 最佳 cutoff），参数化脚本
+├── BCR_score_result/        # 各队列的 BCR score 结果表（ROC.R 的输入）
 └── example/
     ├── mixcr/               # MIXCR 输出示例（SRR18509019）
     ├── trust4/              # TRUST4 输出示例（SRR18509019）
@@ -30,6 +32,7 @@ BCR_score/
 - pandas
 - numpy
 - scipy
+- R（仅 `ROC.R` 需要）+ pROC 包（`install.packages("pROC")`）
 
 ## 输入文件生成（MIXCR / TRUST4）
 
@@ -122,6 +125,43 @@ python3 predict.py --table <samples.tsv> --out <result.tsv> \
 | `scale_IGL_UC` / `scale_IGL_CD` / `scale_IGK_UC` / `scale_IGK_CD` | 各链的 BCR score |
 | `n_IGL` / `n_IGK` | 样本中落入 universe 参考集的 CDR3aa 数量 |
 | `k_IGL_UC` / `k_IGL_CD` / `k_IGK_UC` / `k_IGK_CD` | 落入 UC / CD 参考集的 CDR3aa 数量 |
+
+### 3. ROC 分析
+
+`BCR_score_result/` 存放各队列的打分结果表（`score_<队列>.csv`，列为
+`label`、`score_UC`、`score_CD`，行名为样本 id），由 `ROC.R` 对其做 ROC 分析。
+`ROC.R` 为参数化脚本，全部通过命令行传参：
+
+```bash
+Rscript ROC.R --table BCR_score_result/score_PRJNA797175.csv \
+    --case UC --control Control --score score_UC \
+    [--label label] [--cutoff 3.258] [--out roc.pdf]
+```
+
+| 参数 | 说明 |
+|---|---|
+| `--table` | **必填**：分数表路径（CSV 按 `row.names=1` 读取；TSV 需表头 + 行名列） |
+| `--case` | **必填**：标签列中的病例标签（如 `UC`、`CD`） |
+| `--control` | **必填**：标签列中的对照标签（如 `Control`、`HT`） |
+| `--score` | **必填**：使用的分数列名（如 `score_UC`、`score_CD`） |
+| `--label` | 标签列名，默认 `label` |
+| `--cutoff` | 可选：固定阈值，输出该点的敏感度/特异度 |
+| `--out` | 可选：输出图片路径，按扩展名选设备（`.pdf`/`.png`/`.jpg`/`.svg`）；省略则交互式绘图 |
+
+输出到标准输出：AUC（95% CI）、Youden 最佳 cutoff 及其 sens/spec，
+若指定 `--cutoff` 则追加该阈值下的 sens/spec。
+
+示例：
+
+```bash
+# UC vs Control，固定阈值 3.258
+Rscript ROC.R --table BCR_score_result/score_PRJNA797175.csv \
+    --case UC --control Control --score score_UC --cutoff 3.258
+
+# CD vs Control，并输出 PDF 图
+Rscript ROC.R --table BCR_score_result/score_PRJEB24645.csv \
+    --case CD --control Control --score score_CD --out roc_CD.pdf
+```
 
 ## 方法
 
