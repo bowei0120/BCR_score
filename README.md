@@ -22,9 +22,9 @@ BCR_score/
 ├── ROC.R                    # Evaluate: ROC analysis (AUC/CI, Youden best cutoff), parameterized script
 ├── BCR_score_result/        # Per-cohort BCR score result tables (input of ROC.R)
 └── example/
-    ├── mixcr/               # MIXCR output example (SRR18509019)
-    ├── trust4/              # TRUST4 output example (SRR18509019)
-    └── SRR18509019/         # Pipeline output example (combined clonotypes + metrics + prediction)
+    ├── mixcr/               # MIXCR output example (test)
+    ├── trust4/              # TRUST4 output example (test)
+    └── test/                # Pipeline output example (combined clonotypes + metrics + prediction)
 ```
 
 ## Dependencies
@@ -82,7 +82,7 @@ Parameter notes:
 - `-o`: output prefix
 
 Output file `trust4.${prefix}_report.tsv`, which is the `-t` input of `combine_result.py`
-(the file in the example directory is named `trsut4.SRR18509019_report.tsv`; the `trsut4`
+(the file in the example directory is named `trsut4.test_report.tsv`; the `trsut4`
 prefix is the spelling produced by the pipeline).
 
 ## Usage
@@ -328,19 +328,19 @@ happens to be selected.
 
 Shared logic lives in `bcr_core.py`; all scripts need only pandas / numpy / scipy.
 
-## Example: SRR18509019
+## Example: test
 
 ```bash
-# Merge (results in example/SRR18509019/)
+# Merge (results in example/test/)
 python3 combine_result.py \
-    -m example/mixcr/mixcr.SRR18509019.clonotypes.ALL.txt \
-    -t example/trust4/trsut4.SRR18509019_report.tsv \
-    -i SRR18509019 \
-    -o example/SRR18509019
+    -m example/mixcr/mixcr.test.clonotypes.ALL.txt \
+    -t example/trust4/trsut4.test_report.tsv \
+    -i test \
+    -o example/test
 
 # Score
-printf 'sample\tclono_path\nSRR18509019\t%s\n' \
-    "$PWD/example/SRR18509019/SRR18509019.BCR_clonotypes.txt" > samples.tsv
+printf 'sample\tclono_path\ntest\t%s\n' \
+    "$PWD/example/test/test.BCR_clonotypes.txt" > samples.tsv
 python3 predict.py --table samples.tsv --out result.tsv \
     --fisher-json fisher_sets.json --params params_full.json
 ```

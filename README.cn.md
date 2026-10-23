@@ -21,9 +21,9 @@ BCR_score/
 ├── ROC.R                    # 评估：ROC 分析（AUC/CI、Youden 最佳 cutoff），参数化脚本
 ├── BCR_score_result/        # 各队列的 BCR score 结果表（ROC.R 的输入）
 └── example/
-    ├── mixcr/               # MIXCR 输出示例（SRR18509019）
-    ├── trust4/              # TRUST4 输出示例（SRR18509019）
-    └── SRR18509019/         # 流水线输出示例（合并克隆型表 + 指标 + 预测结果）
+    ├── mixcr/               # MIXCR 输出示例（test）
+    ├── trust4/              # TRUST4 输出示例（test）
+    └── test/                # 流水线输出示例（合并克隆型表 + 指标 + 预测结果）
 ```
 
 ## 依赖
@@ -80,7 +80,7 @@ run-trust4 \
 - `-o`：输出前缀
 
 输出文件 `trust4.${prefix}_report.tsv`，即 `combine_result.py` 的 `-t` 输入
-（示例目录中的文件名为 `trsut4.SRR18509019_report.tsv`，前缀 `trsut4` 为流水线输出时的拼写）。
+（示例目录中的文件名为 `trsut4.test_report.tsv`，前缀 `trsut4` 为流水线输出时的拼写）。
 
 ## 使用流程
 
@@ -309,19 +309,19 @@ python3 resample_patients.py --table cohort.tsv --out-dir train/res/ \
 
 公共逻辑位于 `bcr_core.py`；所有脚本仅依赖 pandas / numpy / scipy。
 
-## 示例：SRR18509019
+## 示例：test
 
 ```bash
-# 合并（结果见 example/SRR18509019/）
+# 合并（结果见 example/test/）
 python3 combine_result.py \
-    -m example/mixcr/mixcr.SRR18509019.clonotypes.ALL.txt \
-    -t example/trust4/trsut4.SRR18509019_report.tsv \
-    -i SRR18509019 \
-    -o example/SRR18509019
+    -m example/mixcr/mixcr.test.clonotypes.ALL.txt \
+    -t example/trust4/trsut4.test_report.tsv \
+    -i test \
+    -o example/test
 
 # 打分
-printf 'sample\tclono_path\nSRR18509019\t%s\n' \
-    "$PWD/example/SRR18509019/SRR18509019.BCR_clonotypes.txt" > samples.tsv
+printf 'sample\tclono_path\ntest\t%s\n' \
+    "$PWD/example/test/test.BCR_clonotypes.txt" > samples.tsv
 python3 predict.py --table samples.tsv --out result.tsv \
     --fisher-json fisher_sets.json --params params_full.json
 ```
